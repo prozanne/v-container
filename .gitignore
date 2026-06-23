@@ -1,0 +1,13 @@
+# build output
+/dist/
+/build/
+*.exe
+vc
+vc-*
+# local test artifacts
+/.testtmp/
+*.qcow2
+*.img
+*.iso
+# go
+/vendor/
