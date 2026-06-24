@@ -1,6 +1,7 @@
 package qemu
 
 import (
+	"reflect"
 	"strings"
 	"testing"
 )
@@ -59,37 +60,46 @@ func baseSpec() Spec {
 }
 
 func TestBuildArgs_MachineAndAccel(t *testing.T) {
+	// QEMU forbids mixing "-machine accel=" with "-accel", so -machine must NOT
+	// carry accel=, and each accelerator must be its own -accel flag (a fallback
+	// list). tcg always gets thread=multi.
 	tests := []struct {
-		name      string
-		accel     string
-		machine   string
-		wantMach  string
-		wantAccel string
+		name       string
+		accel      string
+		machine    string
+		wantMach   string
+		wantAccels []string
 	}{
 		{
-			name:      "whpx fallback to tcg",
-			accel:     "whpx:tcg",
-			wantMach:  "q35,accel=whpx:tcg",
-			wantAccel: "tcg,thread=multi",
+			name:       "whpx fallback to tcg",
+			accel:      "whpx:tcg",
+			wantMach:   "q35",
+			wantAccels: []string{"whpx", "tcg,thread=multi"},
 		},
 		{
-			name:      "tcg only",
-			accel:     "tcg",
-			wantMach:  "q35,accel=tcg",
-			wantAccel: "tcg,thread=multi",
+			name:       "kvm fallback to tcg",
+			accel:      "kvm:tcg",
+			wantMach:   "q35",
+			wantAccels: []string{"kvm", "tcg,thread=multi"},
 		},
 		{
-			name:      "empty accel defaults to tcg",
-			accel:     "",
-			wantMach:  "q35,accel=tcg",
-			wantAccel: "tcg,thread=multi",
+			name:       "tcg only",
+			accel:      "tcg",
+			wantMach:   "q35",
+			wantAccels: []string{"tcg,thread=multi"},
 		},
 		{
-			name:      "custom machine",
-			accel:     "tcg",
-			machine:   "pc",
-			wantMach:  "pc,accel=tcg",
-			wantAccel: "tcg,thread=multi",
+			name:       "empty accel defaults to tcg",
+			accel:      "",
+			wantMach:   "q35",
+			wantAccels: []string{"tcg,thread=multi"},
+		},
+		{
+			name:       "custom machine",
+			accel:      "tcg",
+			machine:    "pc",
+			wantMach:   "pc",
+			wantAccels: []string{"tcg,thread=multi"},
 		},
 	}
 	for _, tt := range tests {
@@ -108,29 +118,14 @@ func TestBuildArgs_MachineAndAccel(t *testing.T) {
 			if got != tt.wantMach {
 				t.Errorf("value after -machine = %q, want %q", got, tt.wantMach)
 			}
-			gotAccel, ok := valueAfter(args, "-accel")
-			if !ok {
-				t.Fatalf("-accel not present in args: %v", args)
+			if strings.Contains(got, "accel=") {
+				t.Errorf("-machine value %q must not contain accel= (conflicts with -accel)", got)
 			}
-			if gotAccel != tt.wantAccel {
-				t.Errorf("value after -accel = %q, want %q", gotAccel, tt.wantAccel)
+			gotAccels := allValuesAfter(args, "-accel")
+			if !reflect.DeepEqual(gotAccels, tt.wantAccels) {
+				t.Errorf("-accel values = %v, want %v", gotAccels, tt.wantAccels)
 			}
 		})
-	}
-}
-
-func TestBuildArgs_AlwaysTCGObject(t *testing.T) {
-	// Even when hardware acceleration is selected, -accel tcg,thread=multi
-	// must always be present to configure the fallback object.
-	s := baseSpec()
-	s.Accel = "whpx:tcg"
-	args, err := BuildArgs(s)
-	if err != nil {
-		t.Fatalf("BuildArgs returned error: %v", err)
-	}
-	got, ok := valueAfter(args, "-accel")
-	if !ok || got != "tcg,thread=multi" {
-		t.Errorf("value after -accel = %q (found=%v), want %q", got, ok, "tcg,thread=multi")
 	}
 }
 
@@ -537,8 +532,9 @@ func TestBuildArgs_FullSpecOrdering(t *testing.T) {
 			t.Errorf("flag %q appears %d times, want 1; args=%v", flag, c, args)
 		}
 	}
-	if c := count(args, "-accel"); c != 1 {
-		t.Errorf("flag -accel appears %d times, want 1; args=%v", c, args)
+	// accel "whpx:tcg" expands to two -accel flags (whpx, then tcg fallback).
+	if c := count(args, "-accel"); c != 2 {
+		t.Errorf("flag -accel appears %d times, want 2; args=%v", c, args)
 	}
 	if c := count(args, "-drive"); c != 2 {
 		t.Errorf("flag -drive appears %d times, want 2; args=%v", c, args)

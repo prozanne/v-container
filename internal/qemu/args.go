@@ -7,6 +7,7 @@ package qemu
 import (
 	"fmt"
 	"strconv"
+	"strings"
 )
 
 // Default values applied when a Spec field is left zero/empty.
@@ -34,7 +35,7 @@ type Spec struct {
 	Name           string  // VM name, used for -name
 	CPUs           int     // -smp
 	MemMB          int     // -m (MiB)
-	Accel          string  // "whpx:tcg" or "tcg" — goes into -machine accel=...
+	Accel          string  // "whpx:tcg" or "tcg" — emitted as a -accel fallback list
 	Machine        string  // default "q35"
 	Drives         []Drive // disk + seed (+ optional ISO)
 	NetID          string  // e.g. "net0"
@@ -105,9 +106,19 @@ func BuildArgs(s Spec) ([]string, error) {
 		args = append(args, "-name", s.Name)
 	}
 
-	args = append(args, "-machine", machine+",accel="+accel)
-	// Always configure the tcg object used in the fallback accelerator.
-	args = append(args, "-accel", "tcg,thread=multi")
+	// Accelerator selection. QEMU rejects mixing "-machine accel=" with the
+	// standalone "-accel" option, so we use ONLY -accel and list each candidate
+	// as its own flag: with several -accel options QEMU tries them in order and
+	// uses the next when one fails to initialize (e.g. whpx then tcg). The tcg
+	// object gets thread=multi for multi-threaded software emulation.
+	args = append(args, "-machine", machine)
+	for _, ac := range splitAccel(accel) {
+		if ac == "tcg" {
+			args = append(args, "-accel", "tcg,thread=multi")
+		} else {
+			args = append(args, "-accel", ac)
+		}
+	}
 	args = append(args, "-cpu", "max")
 	args = append(args, "-smp", strconv.Itoa(cpus))
 	args = append(args, "-m", strconv.Itoa(mem))
@@ -146,4 +157,21 @@ func BuildArgs(s Spec) ([]string, error) {
 	args = append(args, s.ExtraArgs...)
 
 	return args, nil
+}
+
+// splitAccel parses an accelerator spec like "whpx:tcg" into ["whpx","tcg"],
+// dropping empty entries. An empty spec yields ["tcg"].
+func splitAccel(accel string) []string {
+	parts := strings.Split(accel, ":")
+	out := make([]string, 0, len(parts))
+	for _, p := range parts {
+		p = strings.TrimSpace(p)
+		if p != "" {
+			out = append(out, p)
+		}
+	}
+	if len(out) == 0 {
+		return []string{"tcg"}
+	}
+	return out
 }
