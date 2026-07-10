@@ -3,6 +3,8 @@
 package qemu
 
 import (
+	"path/filepath"
+	"strings"
 	"syscall"
 
 	"golang.org/x/sys/windows"
@@ -39,4 +41,22 @@ func killProcess(pid int) error {
 	}
 	defer windows.CloseHandle(h)
 	return windows.TerminateProcess(h, 1)
+}
+
+// processIsQemu reports whether pid's executable looks like a QEMU binary, so
+// that a stale pid recycled by Windows (common after a reboot) for an
+// unrelated program is never mistaken for a VM.
+func processIsQemu(pid int) bool {
+	h, err := windows.OpenProcess(windows.PROCESS_QUERY_LIMITED_INFORMATION, false, uint32(pid))
+	if err != nil {
+		return false
+	}
+	defer windows.CloseHandle(h)
+	var buf [1024]uint16
+	size := uint32(len(buf))
+	if err := windows.QueryFullProcessImageName(h, 0, &buf[0], &size); err != nil {
+		return false
+	}
+	exe := strings.ToLower(filepath.Base(windows.UTF16ToString(buf[:size])))
+	return strings.HasPrefix(exe, "qemu-system")
 }

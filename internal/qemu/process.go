@@ -58,12 +58,16 @@ func ReadPIDFile(path string) (int, error) {
 	return pid, nil
 }
 
-// IsRunning reports whether a process with pid is currently alive.
+// IsRunning reports whether pid is alive and is a QEMU process. The identity
+// check matters because a VM's recorded pid can outlive its process (host
+// reboot, crash) and the OS may recycle the pid for an unrelated program;
+// treating that as "running" would misreport state and aim Stop's kill at an
+// innocent process.
 func IsRunning(pid int) bool {
 	if pid <= 0 {
 		return false
 	}
-	return processAlive(pid)
+	return processAlive(pid) && processIsQemu(pid)
 }
 
 // WaitExit polls until the process exits or timeout elapses; returns true if it
@@ -79,10 +83,18 @@ func WaitExit(pid int, timeout time.Duration) bool {
 	return !IsRunning(pid)
 }
 
-// Kill forcibly terminates the process (last resort).
+// Kill forcibly terminates the process (last resort). A pid whose process is
+// gone is not an error, and a pid that no longer belongs to QEMU is refused
+// (see IsRunning).
 func Kill(pid int) error {
 	if pid <= 0 {
 		return nil
+	}
+	if !processAlive(pid) {
+		return nil
+	}
+	if !processIsQemu(pid) {
+		return fmt.Errorf("refusing to kill pid %d: not a qemu process (pid was likely reused)", pid)
 	}
 	return killProcess(pid)
 }
