@@ -1,0 +1,15 @@
+v-container is installed.
+
+Quick start (open a NEW terminal so it picks up the updated PATH):
+
+  vc launch dev        create and boot an Ubuntu VM
+  vc shell             open a shell in it
+  vc --help            everything else
+
+Notes
+- Everything runs per-user: no admin rights are used or needed.
+- VM data (disks, keys, shared workspaces) lives in %LOCALAPPDATA%\v-container.
+  Uninstalling vc leaves that folder in place; delete it manually if you also
+  want the VMs gone.
+- If Windows SmartScreen warns about the unsigned binaries, choose
+  "More info" -> "Run anyway".

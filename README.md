@@ -42,21 +42,34 @@ falls back to software emulation (TCG) — slower, but it always works.
 
 ## Install
 
-1. Download `vc.exe` (and the bundled `qemu/` folder) from a release, or build it (below).
-2. Put `vc.exe` somewhere on your `PATH`.
-3. Run `vc doctor` to check your environment.
+Grab the latest release from GitHub Releases — three flavors, all admin-free:
 
-### Providing QEMU
+- **`vc-setup-<version>.exe` (recommended)** — per-user installer: no admin rights, no UAC
+  prompt. Installs `vc.exe` plus a bundled QEMU to `%LOCALAPPDATA%\Programs\v-container` and adds
+  it to your user `PATH`. Open a **new** terminal afterwards and run `vc launch dev`.
+- **`vc-<version>-windows-x86_64.zip`** — the same tree, portable: unzip anywhere and run
+  `.\vc.exe` from that folder (or add it to `PATH` yourself). For machines where even user-level
+  installers are blocked.
+- **`vc.exe`** — standalone binary, if you already have QEMU or are only upgrading vc.
 
-`vc` needs `qemu-system-x86_64` and `qemu-img`. It looks for them in this order:
+Windows SmartScreen may warn once about the unsigned binaries — choose "More info → Run anyway".
+Uninstalling removes the program and its `PATH` entry but deliberately leaves your VMs
+(`%LOCALAPPDATA%\v-container`); delete that folder too if you want them gone.
 
-1. a `qemu/` folder next to `vc.exe` (the recommended **bundle**),
+Releases are built and attached automatically when a `v*` tag is pushed
+(`.github/workflows/release.yml`).
+
+### Providing QEMU yourself
+
+The installer and the zip already bundle QEMU (x86_64-only, ~170 MB unpacked). If you use the
+standalone `vc.exe` instead, it looks for `qemu-system-x86_64` and `qemu-img` in this order:
+
+1. a `qemu/` folder next to `vc.exe` (the **bundle** layout),
 2. a directory you set with `vc setup --qemu-dir <path>` (saved to config),
 3. your `PATH`.
 
-Windows QEMU builds: <https://qemu.weilnetz.de/w64/> (linked from qemu.org). For a self-contained
-bundle, copy `qemu-system-x86_64.exe`, its DLLs, and the `share/` firmware into a `qemu/` folder
-next to `vc.exe`. Run `vc setup` for guidance.
+Windows QEMU builds: <https://qemu.weilnetz.de/w64/> (linked from qemu.org). Run `vc setup` for
+guidance.
 
 ## Usage
 
