@@ -15,7 +15,7 @@ type DialOptions struct {
 	Addr    string // "127.0.0.1:port"
 	User    string
 	Signer  ssh.Signer
-	Timeout time.Duration // per-attempt dial+handshake timeout; 0 => 15s
+	Timeout time.Duration // per-attempt dial+handshake timeout; 0 => 30s
 }
 
 // Client wraps an *ssh.Client with the address it connected to.
@@ -39,7 +39,7 @@ func (o DialOptions) validate() error {
 
 func (o DialOptions) timeout() time.Duration {
 	if o.Timeout <= 0 {
-		return 15 * time.Second
+		return 30 * time.Second
 	}
 	return o.Timeout
 }
